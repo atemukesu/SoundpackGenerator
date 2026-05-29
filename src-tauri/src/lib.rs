@@ -7,11 +7,17 @@ mod settings;
 use generator::Region;
 use std::path::Path;
 use std::process::Command;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use settings::{AppSettings, load_settings, save_settings};
 
 #[tauri::command]
 fn check_command_available(cmd: String) -> bool {
-    let status = Command::new(&cmd).arg("--version").output();
+    let mut child = Command::new(&cmd);
+    child.arg("--version");
+    #[cfg(windows)]
+    { child.creation_flags(0x08000000); }
+    let status = child.output();
     match status {
         Ok(output) => output.status.success() || !output.stdout.is_empty() || !output.stderr.is_empty(),
         Err(_) => false,

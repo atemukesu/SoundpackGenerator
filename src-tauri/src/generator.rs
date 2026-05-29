@@ -11,6 +11,8 @@ use midly::{Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, T
 use std::io::{Read, Write};
 use tauri::{AppHandle, Emitter};
 use tokio::process::Command;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use zip::ZipWriter;
 use zip::write::FileOptions;
 
@@ -154,15 +156,11 @@ async fn render_note_wav(
 ) -> Result<()> {
     let midi_file = make_note_midi(bank, preset, note, duration_ms)?;
 
-    let status = Command::new(fs_cmd)
-        .arg("-ni")
-        .arg("-F")
-        .arg(out_wav)
-        .arg(sf2_path)
-        .arg(&midi_file)
-        .status()
-        .await
-        .context("Failed to run fluidsynth")?;
+    let mut cmd = Command::new(fs_cmd);
+    cmd.arg("-ni").arg("-F").arg(out_wav).arg(sf2_path).arg(&midi_file);
+    #[cfg(windows)]
+    { cmd.as_std_mut().creation_flags(0x08000000); }
+    let status = cmd.status().await.context("Failed to run fluidsynth")?;
 
     let _ = fs::remove_file(&midi_file);
 
@@ -190,7 +188,6 @@ async fn convert_to_ogg(
         let duration = r.end - r.start;
         cmd.arg("-ss").arg(r.start.to_string());
         cmd.arg("-t").arg(duration.to_string());
-        // Tiny fade-out to prevent clicks at the trim boundary
         let fade_start = (duration - 0.05).max(0.0);
         filters.push(format!("afade=t=out:st={fade_start}:d=0.05"));
     }
@@ -203,11 +200,13 @@ async fn convert_to_ogg(
         cmd.arg("-af").arg(filters.join(","));
     }
 
-    cmd.arg("-ac").arg("1"); // mono
+    cmd.arg("-ac").arg("1");
     cmd.arg("-c:a").arg("libvorbis");
     cmd.arg("-q:a").arg("5");
     cmd.arg(output);
 
+    #[cfg(windows)]
+    { cmd.as_std_mut().creation_flags(0x08000000); }
     let status = cmd.status().await.context("Failed to run ffmpeg")?;
     if !status.success() {
         anyhow::bail!("ffmpeg exited with status: {}", status);
@@ -440,10 +439,9 @@ pub async fn reprocess_sample_internal(
 
     {
         let mut cmd = Command::new("ffmpeg");
-        cmd.arg("-y")
-           .arg("-i")
-           .arg(&ogg_path)
-           .arg(&temp_wav);
+        cmd.arg("-y").arg("-i").arg(&ogg_path).arg(&temp_wav);
+        #[cfg(windows)]
+        { cmd.as_std_mut().creation_flags(0x08000000); }
         let status = cmd.status().await.context("Failed to decode OGG to WAV")?;
         if !status.success() {
             anyhow::bail!("ffmpeg decode failed with status: {}", status);
