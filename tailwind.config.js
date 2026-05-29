@@ -1,3 +1,8 @@
+/**
+ * Copyright Atemukesu
+ * SPDX-License-Identifier: GPL-3.0
+ */
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [

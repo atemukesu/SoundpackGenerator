@@ -1,3 +1,8 @@
+/**
+ * Copyright Atemukesu
+ * SPDX-License-Identifier: GPL-3.0
+ */
+
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 

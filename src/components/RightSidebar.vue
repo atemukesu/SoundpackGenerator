@@ -1,3 +1,8 @@
+<!--
+ Copyright Atemukesu
+ SPDX-License-Identifier: GPL-3.0
+-->
+
 <script setup>
 import { ref, computed } from 'vue';
 import { INSTRUMENTS } from '../constants/gm.js';

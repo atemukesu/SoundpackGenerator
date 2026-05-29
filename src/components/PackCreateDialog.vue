@@ -1,3 +1,8 @@
+<!--
+ Copyright Atemukesu
+ SPDX-License-Identifier: GPL-3.0
+-->
+
 <script setup>
 import { ref, watch, computed } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';

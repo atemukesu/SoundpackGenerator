@@ -1,3 +1,8 @@
+<!--
+ Copyright Atemukesu
+ SPDX-License-Identifier: GPL-3.0
+-->
+
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { INSTRUMENTS, getDrumKeyName } from '../constants/gm.js';

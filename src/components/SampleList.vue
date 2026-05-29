@@ -1,3 +1,8 @@
+<!--
+ Copyright Atemukesu
+ SPDX-License-Identifier: GPL-3.0
+-->
+
 <script setup>
 import { computed, ref } from 'vue';
 import { midiNoteName, getInstrumentName, getDrumKeyName } from '../constants/gm.js';

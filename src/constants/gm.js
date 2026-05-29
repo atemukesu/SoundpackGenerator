@@ -1,3 +1,8 @@
+/**
+ * Copyright Atemukesu
+ * SPDX-License-Identifier: GPL-3.0
+ */
+
 export const GM_INSTRUMENTS = [
   "大钢琴",
   "亮音大钢琴",

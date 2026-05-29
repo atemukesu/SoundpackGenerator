@@ -1,3 +1,6 @@
+// Copyright Atemukesu
+// SPDX-License-Identifier: GPL-3.0
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
