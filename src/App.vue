@@ -17,6 +17,7 @@ import Sf2GeneratorDialog from './components/Sf2GeneratorDialog.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import PackCreateDialog from './components/PackCreateDialog.vue';
 import Toast from './components/Toast.vue';
+import SupportModal from './components/SupportModal.vue';
 
 const toastRef = ref(null);
 const showToast = (message, type = 'error') => {
@@ -47,6 +48,7 @@ const currentSamples = computed(() => {
 
 const showSf2Dialog = ref(false);
 const showEditorModal = ref(false);
+const showSupport = ref(false);
 const showSettings = ref(false);
 const showPackCreate = ref(false);
 const sf2DialogRef = ref(null);
@@ -523,7 +525,9 @@ const handleRefresh = async () => {
 
         <div class="mt-8 flex justify-center gap-4 text-xs text-gray-400">
           <button @click="showSettings = true" class="hover:text-gray-600 transition-colors">设置</button>
+          <button @click="showSupport = true" class="hover:text-pink-500 transition-colors text-pink-400">赞助</button>
         </div>
+        <div class="mt-6 text-xs text-gray-400">Made by Atemukesu with <span class="text-pink-500">&#9829;</span></div>
       </div>
     </div>
 
@@ -601,7 +605,15 @@ const handleRefresh = async () => {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              设置
+               设置
+            </button>
+
+            <button @click="showSupport = true"
+              class="flex items-center gap-2 px-4 py-2 rounded-lg bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium transition-colors shadow-sm shadow-pink-500/20">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+              赞助
             </button>
           </div>
         </header>
@@ -610,6 +622,11 @@ const handleRefresh = async () => {
         <SampleList :instrumentId="selectedInstrumentId" :samples="currentSamples" :playingNote="playingSample?.note"
           @play="handlePlay" @edit="handleEdit" @delete="handleDelete" @add-custom="addCustomAudio"
           @batch-edit="handleBatchEdit" @batch-delete="handleBatchDelete" />
+
+        <!-- 页脚 -->
+        <footer class="flex-shrink-0 px-6 py-2 border-t border-gray-200 bg-white text-xs text-gray-400 text-center">
+          Made by Atemukesu with <span class="text-pink-500">&#9829;</span>
+        </footer>
       </div>
     </template>
 
@@ -626,6 +643,8 @@ const handleRefresh = async () => {
 
     <SettingsModal :visible="showSettings" @close="showSettings = false" @save="handleSaveSettings"
       @error="(msg) => showToast(msg)" />
+
+    <SupportModal :visible="showSupport" @close="showSupport = false" />
 
     <Toast ref="toastRef" />
 

@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+ Copyright Atemukesu
+ SPDX-License-Identifier: GPL-3.0
+-->
+
 <resources>
   <color name="ic_launcher_background">#fff</color>
 </resources>
