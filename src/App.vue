@@ -18,6 +18,7 @@ import SettingsModal from './components/SettingsModal.vue';
 import PackCreateDialog from './components/PackCreateDialog.vue';
 import Toast from './components/Toast.vue';
 import SupportModal from './components/SupportModal.vue';
+import ErrorModal from './components/ErrorModal.vue';
 
 const toastRef = ref(null);
 const showToast = (message, type = 'error') => {
@@ -91,6 +92,15 @@ const progress = ref(-1);
 const isGenerating = ref(false);
 const activeTasks = ref([]);
 const showTaskModal = ref(false);
+
+const showErrorModal = ref(false);
+const errorTitle = ref('');
+const errorDetails = ref('');
+const showError = (title, details) => {
+  errorTitle.value = title;
+  errorDetails.value = details;
+  showErrorModal.value = true;
+};
 
 onMounted(async () => {
   await listen('generation-progress', (event) => {
@@ -192,7 +202,7 @@ const handleSf2Generate = async (params) => {
     showSf2Dialog.value = false;
     showToast(`已为 ${totalInstruments} 个乐器生成 ${params.instruments.reduce((sum, instId) => sum + allSamples[instId]?.length || 0, 0)} 个样本`, 'success');
   } catch (err) {
-    showToast('生成失败: ' + err);
+    showError('生成失败', err);
     const currentTask = activeTasks.value.find(t => t.status === 'generating');
     if (currentTask) currentTask.status = 'error';
   } finally {
@@ -239,7 +249,7 @@ const addCustomAudio = async () => {
         source: 'custom',
       });
     } catch (err) {
-      showToast('转码失败: ' + err);
+      showError('转码失败', err);
     }
   }
 };
@@ -277,7 +287,7 @@ const handlePlay = async (sample) => {
       loadingPlayback.value = false;
     };
   } catch (err) {
-    console.error('播放失败', err);
+    showError('播放失败', err);
     currentAudio = null;
     playingSample.value = null;
     loadingPlayback.value = false;
@@ -314,7 +324,7 @@ const handleEditorSave = async (editData) => {
       region: editData.region,
     });
   } catch (err) {
-    showToast('重新处理失败: ' + err);
+    showError('重新处理失败', err);
   }
   showEditorModal.value = false;
 };
@@ -333,7 +343,7 @@ const handleBatchEdit = async ({ notes, gain, region }) => {
         region: region || null,
       });
     } catch (err) {
-      showToast(`音符 ${pitch} 处理失败: ${err}`);
+      showError(`音符 ${pitch} 处理失败`, err);
     }
     completed++;
   }
@@ -645,6 +655,8 @@ const handleRefresh = async () => {
       @error="(msg) => showToast(msg)" />
 
     <SupportModal :visible="showSupport" @close="showSupport = false" />
+
+    <ErrorModal :visible="showErrorModal" :title="errorTitle" :details="errorDetails" @close="showErrorModal = false" />
 
     <Toast ref="toastRef" />
 

@@ -144,6 +144,33 @@ fn make_note_midi(bank: u32, preset: u32, note: u32, duration_ms: u32) -> Result
     Ok(midi_path)
 }
 
+/// Execute a command and capture stdout/stderr, with detailed error reporting.
+async fn run_command(cmd: &mut Command, label: &str) -> Result<()> {
+    #[cfg(windows)]
+    { cmd.as_std_mut().creation_flags(0x08000000); }
+
+    let program = cmd.as_std().get_program().to_string_lossy().to_string();
+    let args: Vec<String> = cmd.as_std().get_args().map(|a| a.to_string_lossy().to_string()).collect();
+    let cmd_str = if args.is_empty() { program.clone() } else { format!("{} {}", program, args.join(" ")) };
+
+    let output = cmd.output().await.with_context(|| {
+        format!("无法启动 {} 进程", label)
+    })?;
+
+    let exit_code = output.status.code().unwrap_or(-1);
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+
+    if !output.status.success() {
+        anyhow::bail!(
+            "━━━ {} 执行失败 ━━━\n\n命令: {}\n退出码: {}\n\n标准错误输出:\n{}\n\n标准输出:\n{}",
+            label, cmd_str, exit_code, stderr, stdout
+        );
+    }
+
+    Ok(())
+}
+
 /// Render a single MIDI note to a WAV file via fluidsynth.
 async fn render_note_wav(
     fs_cmd: &str,
@@ -158,15 +185,9 @@ async fn render_note_wav(
 
     let mut cmd = Command::new(fs_cmd);
     cmd.arg("-ni").arg("-F").arg(out_wav).arg(sf2_path).arg(&midi_file);
-    #[cfg(windows)]
-    { cmd.as_std_mut().creation_flags(0x08000000); }
-    let status = cmd.status().await.context("Failed to run fluidsynth")?;
+    run_command(&mut cmd, "FluidSynth").await?;
 
     let _ = fs::remove_file(&midi_file);
-
-    if !status.success() {
-        anyhow::bail!("Fluidsynth exited with status: {}", status);
-    }
 
     Ok(())
 }
@@ -205,12 +226,7 @@ async fn convert_to_ogg(
     cmd.arg("-q:a").arg("5");
     cmd.arg(output);
 
-    #[cfg(windows)]
-    { cmd.as_std_mut().creation_flags(0x08000000); }
-    let status = cmd.status().await.context("Failed to run ffmpeg")?;
-    if !status.success() {
-        anyhow::bail!("ffmpeg exited with status: {}", status);
-    }
+    run_command(&mut cmd, "FFmpeg").await?;
 
     Ok(())
 }
@@ -440,12 +456,7 @@ pub async fn reprocess_sample_internal(
     {
         let mut cmd = Command::new("ffmpeg");
         cmd.arg("-y").arg("-i").arg(&ogg_path).arg(&temp_wav);
-        #[cfg(windows)]
-        { cmd.as_std_mut().creation_flags(0x08000000); }
-        let status = cmd.status().await.context("Failed to decode OGG to WAV")?;
-        if !status.success() {
-            anyhow::bail!("ffmpeg decode failed with status: {}", status);
-        }
+        run_command(&mut cmd, "FFmpeg 解码").await?;
     }
 
     let new_ogg_path = ogg_path;
