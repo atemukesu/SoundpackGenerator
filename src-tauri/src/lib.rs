@@ -82,6 +82,7 @@ async fn preview_existing_sample(
 async fn generate_instrument(
     app: tauri::AppHandle,
     #[allow(non_snake_case)] fluidsynthPath: String,
+    #[allow(non_snake_case)] ffmpegPath: String,
     #[allow(non_snake_case)] sf2Path: String,
     bank: u32,
     preset: u32,
@@ -97,6 +98,7 @@ async fn generate_instrument(
     generator::generate_instrument_internal(
         app,
         fluidsynthPath,
+        ffmpegPath,
         sf2Path,
         bank,
         preset,
@@ -121,6 +123,7 @@ async fn convert_custom_audio(
     pitch: u32,
     gain: f64,
     region: Option<Region>,
+    #[allow(non_snake_case)] ffmpegPath: String,
 ) -> Result<(), String> {
     generator::convert_custom_audio_internal(
         inputPath,
@@ -129,6 +132,7 @@ async fn convert_custom_audio(
         pitch,
         gain,
         region,
+        ffmpegPath,
     )
     .await
     .map_err(|e| e.to_string())
@@ -141,6 +145,7 @@ async fn reprocess_sample(
     pitch: u32,
     gain: f64,
     region: Option<Region>,
+    #[allow(non_snake_case)] ffmpegPath: String,
 ) -> Result<(), String> {
     generator::reprocess_sample_internal(
         appPath,
@@ -148,6 +153,7 @@ async fn reprocess_sample(
         pitch,
         gain,
         region,
+        ffmpegPath,
     )
     .await
     .map_err(|e| e.to_string())

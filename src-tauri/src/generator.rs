@@ -50,6 +50,14 @@ fn resolve_fluidsynth(path: &str) -> String {
     }
 }
 
+fn resolve_ffmpeg(path: &str) -> String {
+    if path.trim().is_empty() {
+        "ffmpeg".to_string()
+    } else {
+        path.to_string()
+    }
+}
+
 /// Generate a temporary MIDI file with a single sustained note.
 fn make_note_midi(bank: u32, preset: u32, note: u32, duration_ms: u32) -> Result<PathBuf> {
     let tempo = 500_000; // µs per quarter note (120 BPM)
@@ -195,12 +203,13 @@ async fn render_note_wav(
 /// Convert a WAV (or any audio) to mono OGG Vorbis via ffmpeg, with optional
 /// region trim and gain adjustment.
 async fn convert_to_ogg(
+    ffmpeg_cmd: &str,
     input: &Path,
     output: &Path,
     region: Option<&Region>,
     gain: f64,
 ) -> Result<()> {
-    let mut cmd = Command::new("ffmpeg");
+    let mut cmd = Command::new(ffmpeg_cmd);
     cmd.arg("-y").arg("-i").arg(input);
 
     let mut filters: Vec<String> = Vec::new();
@@ -361,6 +370,7 @@ pub async fn preview_existing_sample_internal(
 pub async fn generate_instrument_internal(
     app: AppHandle,
     fluidsynth_path: String,
+    ffmpeg_path: String,
     sf2_path: String,
     bank: u32,
     preset: u32,
@@ -378,6 +388,7 @@ pub async fn generate_instrument_internal(
     fs::create_dir_all(&sounds_dir).context("Failed to create output directories")?;
 
     let fs_cmd = resolve_fluidsynth(&fluidsynth_path);
+    let ffmpeg_cmd = resolve_ffmpeg(&ffmpeg_path);
     let notes: Vec<u32> = (note_start..=note_end).step_by(note_step.max(1) as usize).collect();
 
     let max_concurrent = if max_cores > 0 { max_cores as usize } else { num_cpus::get().min(4) };
@@ -387,6 +398,7 @@ pub async fn generate_instrument_internal(
     let mut handles = Vec::new();
     for &note in &notes {
         let fs_cmd = fs_cmd.clone();
+        let ffmpeg_cmd = ffmpeg_cmd.clone();
         let sf2_path = sf2_path.clone();
         let instrument_id = instrument_id.clone();
         let sounds_dir = sounds_dir.clone();
@@ -403,7 +415,7 @@ pub async fn generate_instrument_internal(
             let final_ogg = sounds_dir.join(format!("{}.{}.ogg", instrument_id, note));
 
             render_note_wav(&fs_cmd, &sf2_path, bank, preset, note, 20000, &temp_wav).await?;
-            convert_to_ogg(&temp_wav, &final_ogg, region.as_ref(), gain).await?;
+            convert_to_ogg(&ffmpeg_cmd, &temp_wav, &final_ogg, region.as_ref(), gain).await?;
             let _ = fs::remove_file(&temp_wav);
 
             let done = completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
@@ -441,6 +453,7 @@ pub async fn reprocess_sample_internal(
     pitch: u32,
     new_gain: f64,
     new_region: Option<Region>,
+    ffmpeg_path: String,
 ) -> Result<()> {
     let base = PathBuf::from(&app_path);
     let sounds_dir = base.join("assets/extendednoteblock/sounds/notes");
@@ -453,14 +466,15 @@ pub async fn reprocess_sample_internal(
     let temp_dir = std::env::temp_dir();
     let temp_wav = temp_dir.join(format!("spg_reprocess_{}_{}.wav", instrument_id, pitch));
 
+    let ffmpeg_cmd = resolve_ffmpeg(&ffmpeg_path);
     {
-        let mut cmd = Command::new("ffmpeg");
+        let mut cmd = Command::new(&ffmpeg_cmd);
         cmd.arg("-y").arg("-i").arg(&ogg_path).arg(&temp_wav);
         run_command(&mut cmd, "FFmpeg 解码").await?;
     }
 
     let new_ogg_path = ogg_path;
-    convert_to_ogg(&temp_wav, &new_ogg_path, new_region.as_ref(), new_gain).await?;
+    convert_to_ogg(&ffmpeg_cmd, &temp_wav, &new_ogg_path, new_region.as_ref(), new_gain).await?;
     let _ = fs::remove_file(&temp_wav);
 
     Ok(())
@@ -623,6 +637,7 @@ pub async fn convert_custom_audio_internal(
     pitch: u32,
     gain: f64,
     region: Option<Region>,
+    ffmpeg_path: String,
 ) -> Result<()> {
     let base = PathBuf::from(&out_path);
     let sounds_dir = base.join("assets/extendednoteblock/sounds/notes");
@@ -631,7 +646,8 @@ pub async fn convert_custom_audio_internal(
     let input = PathBuf::from(&input_path);
     let final_ogg = sounds_dir.join(format!("{}.{}.ogg", instrument_id, pitch));
 
-    convert_to_ogg(&input, &final_ogg, region.as_ref(), gain).await?;
+    let ffmpeg_cmd = resolve_ffmpeg(&ffmpeg_path);
+    convert_to_ogg(&ffmpeg_cmd, &input, &final_ogg, region.as_ref(), gain).await?;
 
     // Update pack.json
     let mut pack = read_or_create_pack(&base);

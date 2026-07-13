@@ -5,10 +5,11 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { INSTRUMENTS } from './constants/gm.js';
+import { detectPitch } from './utils/pitchDetector.js';
 
 import RightSidebar from './components/RightSidebar.vue';
 import SampleList from './components/SampleList.vue';
@@ -58,10 +59,12 @@ const packCreateRef = ref(null);
 const showPitchInput = ref(false);
 const pitchInputValue = ref('');
 const pitchInputResolve = ref(null);
+const pitchDetected = ref(false);
 
-const requestPitch = (filename, defaultPitch = 60) => {
+const requestPitch = (filename, defaultPitch = 60, detected = false) => {
   return new Promise((resolve) => {
     pitchInputValue.value = String(defaultPitch);
+    pitchDetected.value = detected;
     showPitchInput.value = { filename, defaultPitch };
     pitchInputResolve.value = resolve;
   });
@@ -172,6 +175,7 @@ const handleSf2Generate = async (params) => {
 
       await invoke('generate_instrument', {
         fluidsynthPath: settings.fluidsynthPath,
+        ffmpegPath: settings.ffmpegPath,
         sf2Path: params.sf2Path,
         bank: instId === 128 ? 128 : 0,
         preset: instId === 128 ? 0 : instId,
@@ -225,11 +229,23 @@ const addCustomAudio = async () => {
   showToast(`正在处理 ${paths.length} 个音频文件，请稍候...`, 'success');
 
   for (const p of paths) {
-    let pitch = 60;
     const existing = new Set((allSamples[instId] || []).map(s => s.note));
+    let pitch = 60;
     while (existing.has(pitch) && pitch < 127) pitch++;
 
-    const promptPitch = await requestPitch(p.split(/[\\/]/).pop(), pitch);
+    let detectedPitch = null;
+    try {
+      const assetUrl = convertFileSrc(p);
+      const response = await fetch(assetUrl);
+      const blob = await response.blob();
+      const fileForDetect = new File([blob], p.split(/[\\/]/).pop(), { type: blob.type || 'audio/wav' });
+      detectedPitch = await detectPitch(fileForDetect);
+    } catch {
+      // detection failed, fallback to default
+    }
+
+    const defaultPitch = detectedPitch !== null && detectedPitch >= 0 && detectedPitch <= 127 ? detectedPitch : pitch;
+    const promptPitch = await requestPitch(p.split(/[\\/]/).pop(), defaultPitch, detectedPitch !== null);
     if (promptPitch === null) continue;
     pitch = promptPitch;
 
@@ -241,6 +257,7 @@ const addCustomAudio = async () => {
         pitch: pitch,
         gain: 0.0,
         region: null,
+        ffmpegPath: settings.ffmpegPath,
       });
 
       allSamples[instId].push({
@@ -322,6 +339,7 @@ const handleEditorSave = async (editData) => {
       pitch: editorSampleInfo.value.note,
       gain: editData.gain,
       region: editData.region,
+      ffmpegPath: settings.ffmpegPath,
     });
   } catch (err) {
     showError('重新处理失败', err);
@@ -341,6 +359,7 @@ const handleBatchEdit = async ({ notes, gain, region }) => {
         pitch,
         gain,
         region: region || null,
+        ffmpegPath: settings.ffmpegPath,
       });
     } catch (err) {
       showError(`音符 ${pitch} 处理失败`, err);
@@ -751,7 +770,10 @@ const handleRefresh = async () => {
           </div>
 
           <div class="mb-5">
-            <label class="block text-xs text-gray-500 mb-1.5">MIDI 音高 (0-127)</label>
+            <label class="block text-xs text-gray-500 mb-1.5">
+              MIDI 音高 (0-127)
+              <span v-if="pitchDetected" class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-50 text-green-600 font-medium">已自动检测</span>
+            </label>
             <input v-model="pitchInputValue" type="number" min="0" max="127"
               class="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all"
               @keydown.enter="confirmPitchInput" />
