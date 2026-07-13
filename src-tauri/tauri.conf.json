@@ -13,12 +13,16 @@
     "windows": [
       {
         "title": "soundpackgenerator",
-        "width": 800,
-        "height": 600
+        "width": 1120,
+        "height": 630
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
   },
   "bundle": {

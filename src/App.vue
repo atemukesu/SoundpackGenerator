@@ -60,11 +60,22 @@ const showPitchInput = ref(false);
 const pitchInputValue = ref('');
 const pitchInputResolve = ref(null);
 const pitchDetected = ref(false);
+const pitchDetectionStatus = ref('');
 
-const requestPitch = (filename, defaultPitch = 60, detected = false) => {
+const midiToNoteName = (midi) => {
+  const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const note = notes[midi % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return `${note}${octave}`;
+};
+
+const requestPitch = (filename, defaultPitch = 60, detected = false, detectedValue = null) => {
   return new Promise((resolve) => {
     pitchInputValue.value = String(defaultPitch);
     pitchDetected.value = detected;
+    pitchDetectionStatus.value = detected && detectedValue !== null
+      ? `检测完成：${detectedValue}(${midiToNoteName(detectedValue)}) 仅供参考`
+      : '正在检测中...';
     showPitchInput.value = { filename, defaultPitch };
     pitchInputResolve.value = resolve;
   });
@@ -233,19 +244,30 @@ const addCustomAudio = async () => {
     let pitch = 60;
     while (existing.has(pitch) && pitch < 127) pitch++;
 
+    const filename = p.split(/[\\/]/).pop();
+    const promptPitchPromise = requestPitch(filename, pitch, false, null);
+
     let detectedPitch = null;
     try {
       const assetUrl = convertFileSrc(p);
       const response = await fetch(assetUrl);
       const blob = await response.blob();
-      const fileForDetect = new File([blob], p.split(/[\\/]/).pop(), { type: blob.type || 'audio/wav' });
+      const fileForDetect = new File([blob], filename, { type: blob.type || 'audio/wav' });
       detectedPitch = await detectPitch(fileForDetect);
     } catch {
       // detection failed, fallback to default
     }
 
-    const defaultPitch = detectedPitch !== null && detectedPitch >= 0 && detectedPitch <= 127 ? detectedPitch : pitch;
-    const promptPitch = await requestPitch(p.split(/[\\/]/).pop(), defaultPitch, detectedPitch !== null);
+    const validPitch = detectedPitch !== null && detectedPitch >= 0 && detectedPitch <= 127;
+    if (validPitch) {
+      pitchDetected.value = true;
+      pitchInputValue.value = String(detectedPitch);
+      pitchDetectionStatus.value = `检测完成：${detectedPitch}(${midiToNoteName(detectedPitch)}) 仅供参考`;
+    } else {
+      pitchDetectionStatus.value = '';
+    }
+
+    const promptPitch = await promptPitchPromise;
     if (promptPitch === null) continue;
     pitch = promptPitch;
 
@@ -754,8 +776,7 @@ const handleRefresh = async () => {
     </div>
 
     <Teleport to="body">
-      <div v-if="showPitchInput" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
-        @click.self="cancelPitchInput">
+      <div v-if="showPitchInput" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
         <div class="bg-white rounded-xl p-6 w-[400px] shadow-xl">
           <div class="flex items-center justify-between mb-5">
             <div>
@@ -777,6 +798,13 @@ const handleRefresh = async () => {
             <input v-model="pitchInputValue" type="number" min="0" max="127"
               class="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all"
               @keydown.enter="confirmPitchInput" />
+            <p v-if="pitchDetectionStatus" class="mt-1.5 text-xs text-blue-500 flex items-center gap-1.5">
+              <svg v-if="!pitchDetected" class="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              {{ pitchDetectionStatus }}
+            </p>
           </div>
 
           <div class="flex justify-end gap-3">
